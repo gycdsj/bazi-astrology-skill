@@ -25,4 +25,24 @@ python example_cli.py
 - `analysis_skill.py`：核心 Skill 类
 - `prompt_config.py`：Prompt 模板
 - `example_cli.py`：最小调用示例
+- `ganzhi.py` / `datas.py` / `bazi_simple.py` 等：从网站后端迁移的命理核心代码
+
+## 与私有网页仓同步
+
+本仓库用于开源 skill，网页仓保持私有。推荐通过同步脚本保持两边核心代码一致：
+
+- 从私有网页仓同步到 skill 仓：
+  - `./scripts/sync_from_web.sh`
+- 从 skill 仓回写到私有网页仓：
+  - `./scripts/sync_to_web.sh`
+
+脚本默认网页仓路径为：
+
+- `../suibiansuansuan`
+
+如果你的路径不同，可先设置环境变量：
+
+```bash
+WEB_REPO_DIR=/your/private/web/repo ./scripts/sync_from_web.sh
+```
 
