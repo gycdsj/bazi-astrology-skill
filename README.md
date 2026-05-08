@@ -1,4 +1,4 @@
-# bazi-analysis-skill
+# bazi-fortuneteller-skill
 
 将“随便算算”网站中的分析能力抽离为可复用的 Python Skill（不包含前端）。
 

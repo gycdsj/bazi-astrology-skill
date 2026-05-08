@@ -1,10 +1,10 @@
 ---
-name: bazi-analysis-skill
+name: bazi-fortuneteller
 description: Extracts and runs bazi analysis logic (mingge analysis, dayun detail analysis, and chat context building) without any frontend. Use when the user wants backend-only analysis capability from the suibiansuansuan website.
 disable-model-invocation: true
 ---
 
-# Bazi Analysis Skill
+# Bazi Fortuneteller Skill
 
 ## Instructions
 
