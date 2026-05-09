@@ -306,7 +306,7 @@ def parse_multi_dayun_analysis(content, dayun_list):
     return results
 
 # 可配置的提示词参数
-PROMPT_CONFIG = DEEPSEEK_CONFIG
+PROMPT_CONFIG = LLM_CONFIG
 
 # 分析维度配置（从配置文件中的字典提取名称）
 ANALYSIS_DIMENSIONS_NAMES = {k: v['name'] for k, v in ANALYSIS_DIMENSIONS.items()}

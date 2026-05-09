@@ -9,7 +9,7 @@
 - 对话上下文组装（八字、完整大运、命格分析结果、当前时序信息）
 - 用户问题自动分流：泛化分析输出完整报告，具体问题带 `/chat` 上下文回答
 - 命格分析结果解析（含结构化五行喜忌提取）
-- 通过 DeepSeek(OpenAI SDK 兼容) 调用模型
+- 通过 OpenClaw / OpenAI SDK 兼容接口调用用户运行环境中的大模型
 
 ## 快速开始
 
@@ -20,6 +20,12 @@ pip install -r requirements.txt
 cp .env.example .env
 python example_cli.py
 ```
+
+`.env` 中不要写入或提交真实 token。运行时优先读取调用环境提供的 OpenClaw/OpenAI 兼容变量：
+
+- `OPENCLAW_API_KEY` / `OPENCLAW_BASE_URL` / `OPENCLAW_MODEL`
+- 兼容 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`
+- 也可在初始化 `BaziAnalysisSkill` 时传入 `client`、`api_key`、`base_url`、`model`
 
 ## 主要文件
 

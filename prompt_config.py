@@ -6,10 +6,9 @@
 可以在这里修改和定制各种提示词
 """
 
-# DeepSeek API配置
-DEEPSEEK_CONFIG = {
-    # 'model': 'deepseek-reasoner',
-    'model': 'deepseek-v4-flash',
+# 大模型调用配置（OpenAI SDK 兼容，默认读取 OpenClaw/OpenAI 环境变量）
+LLM_CONFIG = {
+    'model': '',
     'temperature': 1.0,
     'timeout': 30,
     'stream': False
@@ -22,7 +21,7 @@ SYSTEM_PROMPTS = {
     'general': "你是一位专业的命理分析师，请根据用户提供的信息进行准确的分析。"
 }
 
-# 网页底部对话框（与 DeepSeek 对话）使用的 system 提示词，统一在此管理
+# 网页底部对话框使用的 system 提示词，统一在此管理
 CHAT_SYSTEM_PROMPT = (
     "你是一位精通八字命理的专家。请根据用户提供的生辰八字、大运与流年信息（如有）"
     "结合用户的问题，用通俗易懂、简洁的中文回答。注意不要用太多命理的专业术语。"

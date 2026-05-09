@@ -3,7 +3,7 @@ from datetime import datetime
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from prompt_config import CHAT_SYSTEM_PROMPT, DEEPSEEK_CONFIG, PROMPT_TEMPLATES, SYSTEM_PROMPTS
+from prompt_config import CHAT_SYSTEM_PROMPT, LLM_CONFIG, PROMPT_TEMPLATES, SYSTEM_PROMPTS
 
 
 class BaziAnalysisSkill:
@@ -45,14 +45,35 @@ class BaziAnalysisSkill:
         "为什么",
     )
 
-    def __init__(self, api_key=None, base_url=None, model=None):
+    def __init__(self, api_key=None, base_url=None, model=None, client=None):
         load_dotenv()
-        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY", "")
-        self.base_url = base_url or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        self.model = model or os.getenv("DEEPSEEK_MODEL", DEEPSEEK_CONFIG["model"])
-        if not self.api_key:
-            raise ValueError("DEEPSEEK_API_KEY 未配置")
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.api_key = api_key or self._first_env("OPENCLAW_API_KEY", "OPENAI_API_KEY", "LLM_API_KEY")
+        self.base_url = base_url or self._first_env("OPENCLAW_BASE_URL", "OPENAI_BASE_URL", "LLM_BASE_URL")
+        self.model = model or self._first_env("OPENCLAW_MODEL", "OPENAI_MODEL", "LLM_MODEL") or LLM_CONFIG["model"]
+        self.client = client or self._build_client()
+
+    @staticmethod
+    def _first_env(*names):
+        for name in names:
+            value = os.getenv(name)
+            if value:
+                return value
+        return None
+
+    def _build_client(self):
+        kwargs = {}
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.base_url:
+            kwargs["base_url"] = self.base_url
+        try:
+            return OpenAI(**kwargs)
+        except Exception as exc:
+            raise ValueError(
+                "大模型调用未配置。请在运行环境中设置 OpenClaw/OpenAI 兼容变量，"
+                "例如 OPENCLAW_API_KEY、OPENCLAW_BASE_URL、OPENCLAW_MODEL，"
+                "或传入 client/api_key/base_url/model。"
+            ) from exc
 
     @staticmethod
     def build_bazi_info_string(bazi_data, gender):
@@ -188,15 +209,17 @@ class BaziAnalysisSkill:
         return "\n\n".join(parts)
 
     def _chat(self, system_prompt, user_prompt, temperature=None):
+        if not self.model:
+            raise ValueError("大模型 model 未配置，请设置 OPENCLAW_MODEL、OPENAI_MODEL 或 LLM_MODEL。")
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=DEEPSEEK_CONFIG["temperature"] if temperature is None else temperature,
+            temperature=LLM_CONFIG["temperature"] if temperature is None else temperature,
             stream=False,
-            timeout=DEEPSEEK_CONFIG["timeout"],
+            timeout=LLM_CONFIG["timeout"],
         )
         return response.choices[0].message.content or ""
 
