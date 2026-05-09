@@ -4,6 +4,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 from bazi_simple import bazi_dayun
+from ganzhi import ten_deities, zhi5
 from prompt_config import CHAT_SYSTEM_PROMPT, LLM_CONFIG, PROMPT_TEMPLATES, SYSTEM_PROMPTS
 
 
@@ -13,6 +14,12 @@ class BaziAnalysisSkill:
         "你可以按“公历1992年8月9日11时50分，男/女”的格式告诉我；"
         "如果是农历或闰月，也请一并说明。"
     )
+    PILLAR_LABELS = {
+        "nian": "年柱",
+        "yue": "月柱",
+        "ri": "日柱",
+        "shi": "时柱",
+    }
     GENERAL_ANALYSIS_ACTIONS = ("分析", "看看", "看下", "看一下", "解读", "算算", "测测")
     GENERAL_ANALYSIS_SUBJECTS = ("八字", "生辰", "命盘", "命格", "排盘")
     SPECIFIC_QUESTION_KEYWORDS = (
@@ -83,26 +90,86 @@ class BaziAnalysisSkill:
 
     @staticmethod
     def build_bazi_info_string(bazi_data, gender):
-        return (
-            "八字信息：\n"
-            f"年柱：{bazi_data['nian']['tian_gan']['char']}{bazi_data['nian']['di_zhi']['char']}\n"
-            f"月柱：{bazi_data['yue']['tian_gan']['char']}{bazi_data['yue']['di_zhi']['char']}\n"
-            f"日柱：{bazi_data['ri']['tian_gan']['char']}{bazi_data['ri']['di_zhi']['char']}\n"
-            f"时柱：{bazi_data['shi']['tian_gan']['char']}{bazi_data['shi']['di_zhi']['char']}\n"
-            f"性别：{gender}\n"
-            f"日主：{bazi_data['ri']['tian_gan']['char']}"
-        )
+        lines = [
+            "八字信息：",
+            f"年柱：{bazi_data['nian']['tian_gan']['char']}{bazi_data['nian']['di_zhi']['char']}",
+            f"月柱：{bazi_data['yue']['tian_gan']['char']}{bazi_data['yue']['di_zhi']['char']}",
+            f"日柱：{bazi_data['ri']['tian_gan']['char']}{bazi_data['ri']['di_zhi']['char']}",
+            f"时柱：{bazi_data['shi']['tian_gan']['char']}{bazi_data['shi']['di_zhi']['char']}",
+            f"性别：{gender}",
+            f"日主：{bazi_data['ri']['tian_gan']['char']}",
+        ]
+        auxiliary_info = BaziAnalysisSkill.format_bazi_auxiliary_info(bazi_data)
+        if auxiliary_info:
+            lines.append(auxiliary_info)
+        return "\n".join(lines)
 
     @classmethod
-    def build_bazi_data_from_zhus(cls, zhus):
+    def build_bazi_data_from_zhus(cls, zhus, calculator=None):
         pillars = ("nian", "yue", "ri", "shi")
-        return {
-            pillar: {
+        bazi_data = {}
+        for pillar, (gan, zhi) in zip(pillars, zhus):
+            detail = cls.build_pillar_auxiliary_detail(gan, zhi, calculator)
+            bazi_data[pillar] = {
                 "tian_gan": {"char": gan},
                 "di_zhi": {"char": zhi},
             }
-            for pillar, (gan, zhi) in zip(pillars, zhus)
+            if detail:
+                bazi_data[pillar]["tian_gan"]["shi_shen"] = detail["tian_gan_shi_shen"]
+                bazi_data[pillar]["di_zhi"]["cang_gan_shi_shen"] = detail["di_zhi_cang_gan_shi_shen"]
+                bazi_data[pillar]["shishen_gan"] = detail["shishen_gan"]
+                bazi_data[pillar]["shishen_zhi"] = detail["shishen_zhi"]
+                bazi_data[pillar]["shensha"] = detail["shensha"]
+        return bazi_data
+
+    @classmethod
+    def build_pillar_auxiliary_detail(cls, gan, zhi, calculator=None):
+        if calculator is None or not getattr(calculator, "me", None):
+            return None
+
+        tian_gan_shi_shen = ten_deities[calculator.me][gan]
+        cang_gan_parts = [f"{cang_gan}{ten_deities[calculator.me][cang_gan]}" for cang_gan in zhi5[zhi]]
+        shensha = " ".join(calculator.get_shens(gan, zhi))
+        return {
+            "tian_gan_shi_shen": tian_gan_shi_shen,
+            "di_zhi_cang_gan_shi_shen": " ".join(cang_gan_parts),
+            "shishen_gan": f"{gan}{tian_gan_shi_shen}",
+            "shishen_zhi": " ".join(cang_gan_parts),
+            "shensha": shensha,
         }
+
+    @classmethod
+    def format_bazi_auxiliary_info(cls, bazi_data):
+        lines = []
+        for pillar, label in cls.PILLAR_LABELS.items():
+            pillar_data = bazi_data.get(pillar, {})
+            tian_gan = pillar_data.get("tian_gan", {})
+            di_zhi = pillar_data.get("di_zhi", {})
+            shishen_gan = (
+                pillar_data.get("shishen_gan")
+                or tian_gan.get("shi_shen")
+                or tian_gan.get("shishen")
+            )
+            shishen_zhi = (
+                pillar_data.get("shishen_zhi")
+                or di_zhi.get("cang_gan_shi_shen")
+                or di_zhi.get("shishen")
+            )
+            shensha = pillar_data.get("shensha")
+
+            detail_parts = []
+            if shishen_gan:
+                detail_parts.append(f"天干十神：{shishen_gan}")
+            if shishen_zhi:
+                detail_parts.append(f"地支藏干十神：{shishen_zhi}")
+            if shensha:
+                detail_parts.append(f"神煞：{shensha}")
+            if detail_parts:
+                lines.append(f"{label}：" + "；".join(detail_parts))
+
+        if not lines:
+            return ""
+        return "八字十神与神煞：\n" + "\n".join(lines)
 
     @classmethod
     def format_dayun_item(cls, dayun):
@@ -165,7 +232,7 @@ class BaziAnalysisSkill:
         _, zhus = calculator.get_bazi()
         full_dayun = [self.format_dayun_item(dayun) for dayun in calculator.get_dayun(n=complete_dayun_count + 1)]
         return {
-            "bazi_data": self.build_bazi_data_from_zhus(zhus),
+            "bazi_data": self.build_bazi_data_from_zhus(zhus, calculator=calculator),
             "complete_dayun": full_dayun,
             "dayun_list": full_dayun[:dayun_list_count],
             "gender": gender or "男",
@@ -177,14 +244,7 @@ class BaziAnalysisSkill:
             return "未提供完整大运信息。"
         lines = []
         for i, yun in enumerate(complete_dayun, start=1):
-            gan_zhi = BaziAnalysisSkill._format_ganzhi(
-                BaziAnalysisSkill._get_dayun_value(yun, "gan_zhi", "ganzhi")
-            )
-            year = BaziAnalysisSkill._get_dayun_value(yun, "year", "start_year")
-            age = BaziAnalysisSkill._get_dayun_value(yun, "age", "start_age")
-            lines.append(
-                f"{i}. {gan_zhi}（起始年份：{year}，对应年龄：{age}岁）"
-            )
+            lines.append(BaziAnalysisSkill.format_dayun_context_line(yun, index=i))
         return "\n".join(lines)
 
     @staticmethod
@@ -223,13 +283,29 @@ class BaziAnalysisSkill:
     def format_dayun_window(cls, dayun_list):
         if not dayun_list:
             return "未提供当前三步大运信息。"
-        lines = []
-        for i, dayun in enumerate(dayun_list, start=1):
-            gan_zhi = cls._format_ganzhi(cls._get_dayun_value(dayun, "gan_zhi", "ganzhi"))
-            year = cls._get_dayun_value(dayun, "year", "start_year")
-            age = cls._get_dayun_value(dayun, "age", "start_age")
-            lines.append(f"{i}. {gan_zhi}（起始年份：{year}，对应年龄：{age}岁）")
-        return "\n".join(lines)
+        return "\n".join(cls.format_dayun_context_line(dayun, index=i) for i, dayun in enumerate(dayun_list, start=1))
+
+    @classmethod
+    def format_dayun_context_line(cls, dayun, index=None):
+        gan_zhi = cls._format_ganzhi(cls._get_dayun_value(dayun, "gan_zhi", "ganzhi"))
+        year = cls._get_dayun_value(dayun, "year", "start_year")
+        age = cls._get_dayun_value(dayun, "age", "start_age")
+        shishen_gan = cls._get_dayun_value(dayun, "shishen_gan")
+        shishen_zhi = cls._get_dayun_value(dayun, "shishen_zhi")
+        shensha = cls._get_dayun_value(dayun, "shensha")
+
+        prefix = f"{index}. " if index is not None else ""
+        line = f"{prefix}{gan_zhi}（起始年份：{year}，对应年龄：{age}岁）"
+        details = []
+        if shishen_gan:
+            details.append(f"天干十神：{shishen_gan}")
+        if shishen_zhi:
+            details.append(f"地支藏干十神：{shishen_zhi}")
+        if shensha:
+            details.append(f"神煞：{shensha}")
+        if details:
+            line += "；" + "；".join(details)
+        return line
 
     @staticmethod
     def format_mingge_analysis(mingge_analysis):
@@ -284,9 +360,7 @@ class BaziAnalysisSkill:
         if da_yun:
             lines = ["当前展示大运："]
             for y in da_yun:
-                year = self._get_dayun_value(y, "year", "start_year")
-                gan_zhi = self._format_ganzhi(self._get_dayun_value(y, "gan_zhi", "ganzhi"))
-                lines.append(f"- {year}年 {gan_zhi}")
+                lines.append("- " + self.format_dayun_context_line(y))
             parts.append("\n".join(lines))
         if mingge_analysis:
             parts.append("命格分析结果：\n" + self.format_mingge_analysis(mingge_analysis))
