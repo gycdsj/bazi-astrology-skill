@@ -17,7 +17,15 @@
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+如果运行环境已经注入 OpenClaw/OpenAI 兼容变量，可直接运行示例；否则先复制 `.env.example` 为 `.env` 并填写本地变量：
+
+```bash
+# 仅在运行环境未注入模型变量时需要
 cp .env.example .env
+
+# 配置完成后运行示例
 python example_cli.py
 ```
 
