@@ -172,6 +172,53 @@ class BaziAnalysisSkill:
         return "八字十神与神煞：\n" + "\n".join(lines)
 
     @classmethod
+    def build_bazi_detail_table(cls, bazi_data):
+        def pillar_value(pillar, field):
+            pillar_data = bazi_data.get(pillar, {})
+            tian_gan = pillar_data.get("tian_gan", {})
+            di_zhi = pillar_data.get("di_zhi", {})
+
+            if field == "tian_gan":
+                value = tian_gan.get("char", "")
+                return f"{value}（日主）" if pillar == "ri" and value else value
+            if field == "tian_gan_shi_shen":
+                if pillar == "ri":
+                    return "日主"
+                return pillar_data.get("shishen_gan") or tian_gan.get("shi_shen") or tian_gan.get("shishen") or ""
+            if field == "di_zhi":
+                return di_zhi.get("char", "")
+            if field == "di_zhi_shi_shen":
+                return pillar_data.get("shishen_zhi") or di_zhi.get("cang_gan_shi_shen") or di_zhi.get("shishen") or ""
+            if field == "shensha":
+                return pillar_data.get("shensha", "")
+            return ""
+
+        def cell(value):
+            text = str(value or "").strip()
+            if not text:
+                return "-"
+            return text.replace(" ", "<br>")
+
+        pillars = ("nian", "yue", "ri", "shi")
+        rows = [
+            ("天干", "tian_gan"),
+            ("天干十神", "tian_gan_shi_shen"),
+            ("地支", "di_zhi"),
+            ("地支藏干十神", "di_zhi_shi_shen"),
+            ("神煞", "shensha"),
+        ]
+        table = [
+            "## 八字命盘详情",
+            "",
+            "|  | 年柱 | 月柱 | 日柱 | 时柱 |",
+            "|---|---|---|---|---|",
+        ]
+        for label, field in rows:
+            values = [cell(pillar_value(pillar, field)) for pillar in pillars]
+            table.append(f"| {label} | " + " | ".join(values) + " |")
+        return "\n".join(table)
+
+    @classmethod
     def format_dayun_item(cls, dayun):
         gan_zhi = cls._format_ganzhi(cls._get_dayun_value(dayun, "gan_zhi", "ganzhi"))
         return {
@@ -487,7 +534,8 @@ class BaziAnalysisSkill:
             dayun_list=report_dayun_list,
             mingge_analysis=mingge_analysis,
         )
-        return self._chat(SYSTEM_PROMPTS["default_report"], prompt)
+        report = self._chat(SYSTEM_PROMPTS["default_report"], prompt)
+        return f"{self.build_bazi_detail_table(bazi_data)}\n\n{report}"
 
     def answer_chat_question(
         self,
