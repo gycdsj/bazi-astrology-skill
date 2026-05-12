@@ -37,19 +37,10 @@ cp .env.example .env
 
 用户只说“帮我分析一下”“帮我分析这个生辰八字”等，没有限定具体方面时，会返回完整报告。
 
-```python
-from analysis_skill import BaziAnalysisSkill
+示例：
 
-skill = BaziAnalysisSkill()
-answer = skill.analyze_user_request(
-    user_message="我出生时间是1992年8月9日11:50，女，分析一下",
-    gender="女",
-    birth_year=1992,
-    birth_month=8,
-    birth_day=9,
-    birth_hour=11,
-    birth_minute=50,
-)
+```text
+我出生时间是公历1992年8月9日11:50，女，帮我分析一下。
 ```
 
 完整报告会先展示命盘详情表，再输出命格分析、当前三步大运详解、五行喜忌和转运建议。
@@ -58,41 +49,19 @@ answer = skill.analyze_user_request(
 
 用户问具体事项时，会直接围绕这个问题回答。
 
-```python
-answer = skill.analyze_user_request(
-    user_message="我今年副业能挣钱吗？",
-    gender="女",
-    birth_year=1992,
-    birth_month=8,
-    birth_day=9,
-    birth_hour=11,
-    birth_minute=50,
-)
+示例：
+
+```text
+我出生时间是公历1992年8月9日11:50，女，我今年副业能挣钱吗？
 ```
 
 ### 出生信息不完整
 
 如果用户没有提供出生年月日时，直接调用也可以：
 
-```python
-answer = skill.analyze_user_request(user_message="帮我分析一下")
+```text
+帮我分析一下。
 ```
 
 返回内容会提示用户补充出生年月日时、性别，以及公历/农历信息。
-
-## 输入字段
-
-常用字段如下：
-
-| 字段 | 说明 |
-|---|---|
-| `user_message` | 用户原始问题 |
-| `gender` | 性别，影响大运顺逆 |
-| `birth_year` | 出生年 |
-| `birth_month` | 出生月 |
-| `birth_day` | 出生日 |
-| `birth_hour` | 出生小时，24 小时制 |
-| `birth_minute` | 出生分钟，默认 `0` |
-| `is_lunar` | 是否农历，默认 `False` |
-| `leap_month` | 农历是否闰月，默认 `False` |
 
