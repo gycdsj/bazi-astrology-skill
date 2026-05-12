@@ -6,8 +6,7 @@
 
 - 根据出生年月日时和性别生成八字分析。
 - 输出完整报告，包括命盘详情、命格分析、当前三步大运、五行喜忌和转运建议。
-- 回答具体问题，例如事业、财运、感情、健康、考试、副业、投资等。
-- 回答带时间的问题，例如“明天运势如何”“下个月是否顺利”“今年能不能挣钱”。
+- 回答具体问题，例如财运、感情、健康、今年能不能挣钱、明天考试怎么样等。
 - 如果出生信息不完整，会提示用户补充出生年月日时和性别。
 
 ## 安装
@@ -31,8 +30,6 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 ```
-
-不要提交真实 token。`.env` 已被 `.gitignore` 忽略。
 
 ## 使用方式
 
@@ -72,24 +69,6 @@ answer = skill.analyze_user_request(
     birth_minute=50,
 )
 ```
-
-### 时间类问题
-
-用户问题涉及时间时，可以直接把时间写在问题里。
-
-```python
-answer = skill.analyze_user_request(
-    user_message="我下个月生孩子会不会顺利？",
-    gender="女",
-    birth_year=1992,
-    birth_month=8,
-    birth_day=9,
-    birth_hour=11,
-    birth_minute=50,
-)
-```
-
-回答会直接说明对应时间的运势，不会机械列出大运、流年、流月、流日清单。
 
 ### 出生信息不完整
 
