@@ -1,48 +1,67 @@
 # bazi-fortuneteller-skill
 
-将“随便算算”网站中的分析能力抽离为可复用的 Python Skill（不包含前端）。
+一个用于八字排盘与命理问答的 Python Skill。输入出生信息和问题，返回适合用户阅读的中文分析。
 
-## 包含能力
+## 能做什么
 
-- 命格分析 Prompt 组装（生辰解读 / 十神格局 / 五行喜忌）
-- 大运详情 Prompt 组装
-- 对话上下文组装（八字、完整大运、命格分析结果、当前时序信息）
-- 命格分析结果解析（含结构化五行喜忌提取）
-- 通过 DeepSeek(OpenAI SDK 兼容) 调用模型
+- 根据出生年月日时和性别生成八字分析。
+- 输出完整报告，包括命盘详情、命格分析、当前三步大运、五行喜忌和转运建议。
+- 回答具体问题，例如财运、感情、健康、今年能不能挣钱、明天考试怎么样等。
+- 如果出生信息不完整，会提示用户补充出生年月日时和性别。
 
-## 快速开始
+## 安装
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-python example_cli.py
 ```
 
-## 主要文件
+## 模型配置
 
-- `analysis_skill.py`：核心 Skill 类
-- `prompt_config.py`：Prompt 模板
-- `example_cli.py`：最小调用示例
-- `ganzhi.py` / `datas.py` / `bazi_simple.py` 等：从网站后端迁移的命理核心代码
+使用 OpenClaw / OpenAI SDK 兼容的大模型接口。运行前请配置以下任一组环境变量：
 
-## 与私有网页仓同步
+- `OPENCLAW_API_KEY` / `OPENCLAW_BASE_URL` / `OPENCLAW_MODEL`
+- 兼容 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`
+- 也兼容 `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`
 
-本仓库用于开源 skill，网页仓保持私有。推荐通过同步脚本保持两边核心代码一致：
-
-- 从私有网页仓同步到 skill 仓：
-  - `./scripts/sync_from_web.sh`
-- 从 skill 仓回写到私有网页仓：
-  - `./scripts/sync_to_web.sh`
-
-脚本默认网页仓路径为：
-
-- `../suibiansuansuan`
-
-如果你的路径不同，可先设置环境变量：
+如果运行环境没有注入这些变量，可以复制 `.env.example` 后填写本地配置：
 
 ```bash
-WEB_REPO_DIR=/your/private/web/repo ./scripts/sync_from_web.sh
+cp .env.example .env
 ```
+
+## 使用方式
+
+### 完整报告
+
+用户只说“帮我分析一下”“帮我分析这个生辰八字”等，没有限定具体方面时，会返回完整报告。
+
+示例：
+
+```text
+我出生时间是公历1992年8月9日11:50，女，帮我分析一下。
+```
+
+完整报告会先展示命盘详情表，再输出命格分析、当前三步大运详解、五行喜忌和转运建议。
+
+### 具体问题
+
+用户问具体事项时，会直接围绕这个问题回答。
+
+示例：
+
+```text
+我出生时间是公历1992年8月9日11:50，女，我今年副业能挣钱吗？
+```
+
+### 出生信息不完整
+
+如果用户没有提供出生年月日时，直接调用也可以：
+
+```text
+帮我分析一下。
+```
+
+返回内容会提示用户补充出生年月日时、性别，以及公历/农历信息。
 

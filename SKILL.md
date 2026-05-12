@@ -1,6 +1,6 @@
 ---
 name: bazi-fortuneteller
-description: Extracts and runs bazi analysis logic (mingge analysis, dayun detail analysis, and chat context building) without any frontend. Use when the user wants backend-only analysis capability from the suibiansuansuan website.
+description: Runs bazi chart generation, dayun analysis, full-report generation, and chat context building for user-facing fortune-telling questions.
 disable-model-invocation: true
 ---
 
@@ -9,10 +9,9 @@ disable-model-invocation: true
 ## Instructions
 
 1. Use `BaziAnalysisSkill` from `analysis_skill.py`.
-2. Input should provide precomputed `bazi_data` and optional `complete_dayun`.
-3. For命格分析, call `analyze_mingge()`.
-4. For单步大运详情, call `analyze_dayun_detail()`.
-5. For对话首轮上下文, call `build_chat_context_string()`.
+2. Prefer `analyze_user_request(user_message, ...)` for user-facing requests.
+3. Pass birth date/time and gender when available; if they are missing, the skill will ask the user to provide them.
+4. The skill handles generic full reports, concrete questions, and time-related questions internally.
 
 ## Notes
 

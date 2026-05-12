@@ -37,7 +37,9 @@ def build_bazi_analysis_prompt(bazi_info, analysis_type='bazi_analysis', complet
     if analysis_type in PROMPT_TEMPLATES:
         return PROMPT_TEMPLATES[analysis_type].format(
             bazi_info=bazi_info,
-            complete_dayun=complete_dayun_text
+            complete_dayun=complete_dayun_text,
+            dayun_list="未提供当前三步大运信息。",
+            existing_mingge_analysis="未提供。",
         )
     else:
         # 默认使用基础分析模板
@@ -304,7 +306,7 @@ def parse_multi_dayun_analysis(content, dayun_list):
     return results
 
 # 可配置的提示词参数
-PROMPT_CONFIG = DEEPSEEK_CONFIG
+PROMPT_CONFIG = LLM_CONFIG
 
 # 分析维度配置（从配置文件中的字典提取名称）
 ANALYSIS_DIMENSIONS_NAMES = {k: v['name'] for k, v in ANALYSIS_DIMENSIONS.items()}
