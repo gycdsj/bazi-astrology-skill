@@ -1,10 +1,13 @@
+import calendar
 import os
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from openai import OpenAI
 from dotenv import load_dotenv
 
 from bazi_simple import bazi_dayun
 from ganzhi import ten_deities, zhi5
+from lunar_python import Solar
 from prompt_config import CHAT_SYSTEM_PROMPT, LLM_CONFIG, PROMPT_TEMPLATES, SYSTEM_PROMPTS
 
 
@@ -56,6 +59,31 @@ class BaziAnalysisSkill:
         "怎么",
         "如何",
         "为什么",
+    )
+    TEMPORAL_QUESTION_KEYWORDS = (
+        "今天",
+        "明天",
+        "后天",
+        "昨天",
+        "本月",
+        "这个月",
+        "下个月",
+        "下月",
+        "上个月",
+        "今年",
+        "明年",
+        "后年",
+        "去年",
+        "下周",
+        "这周",
+        "什么时候",
+        "哪年",
+        "哪月",
+        "几月",
+        "几号",
+        "几日",
+        "预产",
+        "生孩子",
     )
 
     def __init__(self, api_key=None, base_url=None, model=None, client=None):
@@ -385,6 +413,147 @@ class BaziAnalysisSkill:
             "今日干支：请由调用侧传入或在业务层补充"
         )
 
+    @staticmethod
+    def add_months(value, months):
+        month_index = value.month - 1 + months
+        year = value.year + month_index // 12
+        month = month_index % 12 + 1
+        day = min(value.day, calendar.monthrange(year, month)[1])
+        return value.replace(year=year, month=month, day=day)
+
+    @classmethod
+    def question_has_time_reference(cls, user_message):
+        normalized = (user_message or "").strip()
+        if not normalized:
+            return False
+        if any(keyword in normalized for keyword in cls.TEMPORAL_QUESTION_KEYWORDS):
+            return True
+        return bool(
+            re.search(r"\d{4}\s*年", normalized)
+            or re.search(r"\d{1,2}\s*月\s*\d{1,2}\s*[日号]?", normalized)
+        )
+
+    @classmethod
+    def resolve_target_datetime(cls, user_message, reference_datetime=None):
+        reference = reference_datetime or datetime.now()
+        text = (user_message or "").strip()
+
+        match = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?", text)
+        if match:
+            year, month, day = (int(match.group(i)) for i in range(1, 4))
+            return reference.replace(year=year, month=month, day=day), "按用户提供的具体年月日推算。"
+
+        match = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月", text)
+        if match:
+            year, month = (int(match.group(i)) for i in range(1, 3))
+            day = min(reference.day, calendar.monthrange(year, month)[1])
+            return reference.replace(year=year, month=month, day=day), "用户只提供到月份，按当前日期的同一日估算。"
+
+        match = re.search(r"(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?", text)
+        if match:
+            month, day = (int(match.group(i)) for i in range(1, 3))
+            return reference.replace(month=month, day=day), "用户未提供年份，按当前年份推算。"
+
+        if "后天" in text:
+            return reference + timedelta(days=2), "按当前日期后推两天。"
+        if "明天" in text:
+            return reference + timedelta(days=1), "按当前日期后推一天。"
+        if "昨天" in text:
+            return reference - timedelta(days=1), "按当前日期前推一天。"
+        if "下周" in text:
+            return reference + timedelta(days=7), "按当前日期后推一周。"
+        if "下个月" in text or "下月" in text:
+            return cls.add_months(reference, 1), "用户只说下个月，按当前日期顺延一个月估算。"
+        if "上个月" in text:
+            return cls.add_months(reference, -1), "用户只说上个月，按当前日期前推一个月估算。"
+        if "明年" in text:
+            return cls.add_months(reference, 12), "用户只说到明年，按当前月日顺延一年估算。"
+        if "后年" in text:
+            return cls.add_months(reference, 24), "用户只说到后年，按当前月日顺延两年估算。"
+        if "去年" in text:
+            return cls.add_months(reference, -12), "用户只说到去年，按当前月日前推一年估算。"
+
+        return reference, "用户问题涉及时间但未给出具体日期，按当前日期估算。"
+
+    @staticmethod
+    def _to_int(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def find_dayun_for_year(cls, dayun_candidates, target_year):
+        if not dayun_candidates:
+            return None
+
+        active_dayun = None
+        for dayun in dayun_candidates:
+            start_year = cls._to_int(cls._get_dayun_value(dayun, "year", "start_year"))
+            if start_year is None:
+                continue
+            if start_year <= target_year:
+                active_dayun = dayun
+            else:
+                break
+
+        return active_dayun or dayun_candidates[0]
+
+    @classmethod
+    def format_flow_ganzhi(cls, label, gan_zhi, day_master=None):
+        parts = [f"{label}干支：{gan_zhi}"]
+        if day_master and gan_zhi and len(gan_zhi) >= 2:
+            gan = gan_zhi[0]
+            zhi = gan_zhi[1]
+            shishen_gan = f"{gan}{ten_deities[day_master][gan]}"
+            shishen_zhi = " ".join(f"{cang_gan}{ten_deities[day_master][cang_gan]}" for cang_gan in zhi5[zhi])
+            parts.append(f"天干十神：{shishen_gan}")
+            parts.append(f"地支藏干十神：{shishen_zhi}")
+        return "；".join(parts)
+
+    def build_temporal_context_for_question(
+        self,
+        user_message,
+        bazi_data,
+        complete_dayun=None,
+        dayun_list=None,
+        reference_datetime=None,
+    ):
+        if not self.question_has_time_reference(user_message):
+            return ""
+
+        target_datetime, note = self.resolve_target_datetime(user_message, reference_datetime=reference_datetime)
+        lunar = Solar.fromYmdHms(
+            target_datetime.year,
+            target_datetime.month,
+            target_datetime.day,
+            target_datetime.hour,
+            target_datetime.minute,
+            target_datetime.second,
+        ).getLunar()
+        day_master = bazi_data["ri"]["tian_gan"]["char"]
+        dayun_candidates = complete_dayun or dayun_list or []
+        active_dayun = self.find_dayun_for_year(dayun_candidates, target_datetime.year)
+
+        lines = [
+            "时间问题补充信息：",
+            f"目标公历日期：{target_datetime:%Y-%m-%d}",
+            f"时间解析说明：{note}",
+        ]
+        if active_dayun:
+            lines.append("目标日期所属大运：" + self.format_dayun_context_line(active_dayun))
+        else:
+            lines.append("目标日期所属大运：未提供可判断的大运信息")
+
+        lines.extend(
+            [
+                self.format_flow_ganzhi("流年", lunar.getYearInGanZhi(), day_master=day_master),
+                self.format_flow_ganzhi("流月", lunar.getMonthInGanZhi(), day_master=day_master),
+                self.format_flow_ganzhi("流日", lunar.getDayInGanZhi(), day_master=day_master),
+            ]
+        )
+        return "\n".join(lines)
+
     def build_chat_context_string(
         self,
         bazi_data,
@@ -547,6 +716,7 @@ class BaziAnalysisSkill:
         mingge_analysis=None,
         current_month_ganzhi=None,
         current_day_ganzhi=None,
+        temporal_context=None,
     ):
         context = self.build_chat_context_string(
             bazi_data=bazi_data,
@@ -557,6 +727,8 @@ class BaziAnalysisSkill:
             current_month_ganzhi=current_month_ganzhi,
             current_day_ganzhi=current_day_ganzhi,
         )
+        if temporal_context:
+            context = f"{context}\n\n{temporal_context}"
         prompt = (
             f"{context}\n\n"
             f"用户问题：{user_message}\n\n"
@@ -584,6 +756,7 @@ class BaziAnalysisSkill:
         birth_datetime=None,
         is_lunar=False,
         leap_month=False,
+        reference_datetime=None,
     ):
         if bazi_data is None:
             if not self.has_birth_datetime(
@@ -624,6 +797,13 @@ class BaziAnalysisSkill:
                 mingge_analysis=mingge_analysis,
             )
 
+        temporal_context = self.build_temporal_context_for_question(
+            user_message=user_message,
+            bazi_data=bazi_data,
+            complete_dayun=complete_dayun,
+            dayun_list=active_dayun_list,
+            reference_datetime=reference_datetime,
+        )
         return self.answer_chat_question(
             user_message=user_message,
             bazi_data=bazi_data,
@@ -633,5 +813,6 @@ class BaziAnalysisSkill:
             mingge_analysis=mingge_analysis,
             current_month_ganzhi=current_month_ganzhi,
             current_day_ganzhi=current_day_ganzhi,
+            temporal_context=temporal_context,
         )
 
