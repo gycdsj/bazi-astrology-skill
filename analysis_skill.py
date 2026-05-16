@@ -533,6 +533,28 @@ class BaziAnalysisSkill:
             or re.search(r"\d{1,2}\s*月\s*\d{1,2}\s*[日号]?", normalized)
         )
 
+    @staticmethod
+    def resolve_calendar_date(reference, year=None, month=None, day=None, note=""):
+        target_year = reference.year if year is None else int(year)
+        target_month = reference.month if month is None else int(month)
+        target_day = reference.day if day is None else int(day)
+        explicit_day = day is not None
+
+        if target_year < 1 or target_year > 9999:
+            return reference, "用户提供的年份超出可计算范围，按当前日期估算。"
+        if target_month < 1 or target_month > 12:
+            return reference, "用户提供的月份无效，按当前日期估算。"
+
+        max_day = calendar.monthrange(target_year, target_month)[1]
+        if target_day < 1:
+            return reference, "用户提供的日期无效，按当前日期估算。"
+        if target_day > max_day:
+            target_day = max_day
+            if explicit_day:
+                note = "用户提供的日期不存在，按该月最后一天估算。"
+
+        return reference.replace(year=target_year, month=target_month, day=target_day), note
+
     @classmethod
     def resolve_target_datetime(cls, user_message, reference_datetime=None):
         reference = reference_datetime or datetime.now()
@@ -541,18 +563,33 @@ class BaziAnalysisSkill:
         match = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?", text)
         if match:
             year, month, day = (int(match.group(i)) for i in range(1, 4))
-            return reference.replace(year=year, month=month, day=day), "按用户提供的具体年月日推算。"
+            return cls.resolve_calendar_date(
+                reference,
+                year=year,
+                month=month,
+                day=day,
+                note="按用户提供的具体年月日推算。",
+            )
 
         match = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月", text)
         if match:
             year, month = (int(match.group(i)) for i in range(1, 3))
-            day = min(reference.day, calendar.monthrange(year, month)[1])
-            return reference.replace(year=year, month=month, day=day), "用户只提供到月份，按当前日期的同一日估算。"
+            return cls.resolve_calendar_date(
+                reference,
+                year=year,
+                month=month,
+                note="用户只提供到月份，按当前日期的同一日估算。",
+            )
 
         match = re.search(r"(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?", text)
         if match:
             month, day = (int(match.group(i)) for i in range(1, 3))
-            return reference.replace(month=month, day=day), "用户未提供年份，按当前年份推算。"
+            return cls.resolve_calendar_date(
+                reference,
+                month=month,
+                day=day,
+                note="用户未提供年份，按当前年份推算。",
+            )
 
         if "后天" in text:
             return reference + timedelta(days=2), "按当前日期后推两天。"
