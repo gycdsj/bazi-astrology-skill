@@ -411,15 +411,16 @@ class BaziAnalysisSkill:
             "complete_dayun": full_dayun,
             "dayun_list": dayun_window,
             "gender": gender or "男",
+            "calculator": calculator,
         }
 
-    @staticmethod
-    def format_complete_dayun(complete_dayun):
+    @classmethod
+    def format_complete_dayun(cls, complete_dayun, calculator=None):
         if not complete_dayun:
             return "未提供完整大运信息。"
         lines = []
         for i, yun in enumerate(complete_dayun, start=1):
-            lines.append(BaziAnalysisSkill.format_dayun_context_line(yun, index=i))
+            lines.append(cls.format_dayun_context_line(yun, index=i, calculator=calculator))
         return "\n".join(lines)
 
     @staticmethod
@@ -455,19 +456,29 @@ class BaziAnalysisSkill:
         return has_subject or has_action
 
     @classmethod
-    def format_dayun_window(cls, dayun_list):
+    def format_dayun_window(cls, dayun_list, calculator=None):
         if not dayun_list:
             return "未提供当前三步大运信息。"
-        return "\n".join(cls.format_dayun_context_line(dayun, index=i) for i, dayun in enumerate(dayun_list, start=1))
+        return "\n".join(
+            cls.format_dayun_context_line(dayun, index=i, calculator=calculator)
+            for i, dayun in enumerate(dayun_list, start=1)
+        )
 
     @classmethod
-    def format_dayun_context_line(cls, dayun, index=None):
+    def format_dayun_context_line(cls, dayun, index=None, calculator=None):
         gan_zhi = cls._format_ganzhi(cls._get_dayun_value(dayun, "gan_zhi", "ganzhi"))
         year = cls._get_dayun_value(dayun, "year", "start_year")
         age = cls._get_dayun_value(dayun, "age", "start_age")
         shishen_gan = cls._get_dayun_value(dayun, "shishen_gan")
         shishen_zhi = cls._get_dayun_value(dayun, "shishen_zhi")
-        shensha = cls._get_dayun_value(dayun, "shensha")
+        shensha = (cls._get_dayun_value(dayun, "shensha") or "").strip()
+        if (
+            not shensha
+            and calculator is not None
+            and getattr(calculator, "zhis", None)
+            and len(gan_zhi) >= 2
+        ):
+            shensha = " ".join(calculator.get_shens(gan_zhi[0], gan_zhi[1])).strip()
 
         prefix = f"{index}. " if index is not None else ""
         line = f"{prefix}{gan_zhi}（起始年份：{year}，对应年龄：{age}岁）"
@@ -600,7 +611,7 @@ class BaziAnalysisSkill:
         return active_dayun or dayun_candidates[0]
 
     @classmethod
-    def format_flow_ganzhi(cls, label, gan_zhi, day_master=None):
+    def format_flow_ganzhi(cls, label, gan_zhi, day_master=None, calculator=None):
         parts = [f"{label}干支：{gan_zhi}"]
         if day_master and gan_zhi and len(gan_zhi) >= 2:
             gan = gan_zhi[0]
@@ -609,6 +620,15 @@ class BaziAnalysisSkill:
             shishen_zhi = " ".join(f"{cang_gan}{ten_deities[day_master][cang_gan]}" for cang_gan in zhi5[zhi])
             parts.append(f"天干十神：{shishen_gan}")
             parts.append(f"地支藏干十神：{shishen_zhi}")
+        if (
+            calculator is not None
+            and getattr(calculator, "zhis", None)
+            and gan_zhi
+            and len(gan_zhi) >= 2
+        ):
+            ss = " ".join(calculator.get_shens(gan_zhi[0], gan_zhi[1])).strip()
+            if ss:
+                parts.append(f"神煞：{ss}")
         return "；".join(parts)
 
     def build_temporal_context_for_question(
@@ -618,6 +638,7 @@ class BaziAnalysisSkill:
         complete_dayun=None,
         dayun_list=None,
         reference_datetime=None,
+        calculator=None,
     ):
         if not self.question_has_time_reference(user_message):
             return ""
@@ -641,15 +662,24 @@ class BaziAnalysisSkill:
             f"时间解析说明：{note}",
         ]
         if active_dayun:
-            lines.append("目标日期所属大运：" + self.format_dayun_context_line(active_dayun))
+            lines.append(
+                "目标日期所属大运："
+                + self.format_dayun_context_line(active_dayun, calculator=calculator)
+            )
         else:
             lines.append("目标日期所属大运：未提供可判断的大运信息")
 
         lines.extend(
             [
-                self.format_flow_ganzhi("流年", lunar.getYearInGanZhi(), day_master=day_master),
-                self.format_flow_ganzhi("流月", lunar.getMonthInGanZhi(), day_master=day_master),
-                self.format_flow_ganzhi("流日", lunar.getDayInGanZhi(), day_master=day_master),
+                self.format_flow_ganzhi(
+                    "流年", lunar.getYearInGanZhi(), day_master=day_master, calculator=calculator
+                ),
+                self.format_flow_ganzhi(
+                    "流月", lunar.getMonthInGanZhi(), day_master=day_master, calculator=calculator
+                ),
+                self.format_flow_ganzhi(
+                    "流日", lunar.getDayInGanZhi(), day_master=day_master, calculator=calculator
+                ),
             ]
         )
         return "\n".join(lines)
@@ -663,6 +693,7 @@ class BaziAnalysisSkill:
         mingge_analysis=None,
         current_month_ganzhi=None,
         current_day_ganzhi=None,
+        calculator=None,
     ):
         parts = [self.build_bazi_info_string(bazi_data, gender)]
         parts.append(
@@ -672,11 +703,13 @@ class BaziAnalysisSkill:
             f"今日干支：{current_day_ganzhi or '未提供'}"
         )
         if complete_dayun:
-            parts.append("完整大运（10步）：\n" + self.format_complete_dayun(complete_dayun))
+            parts.append(
+                "完整大运（10步）：\n" + self.format_complete_dayun(complete_dayun, calculator=calculator)
+            )
         if da_yun:
             lines = ["当前展示大运："]
             for y in da_yun:
-                lines.append("- " + self.format_dayun_context_line(y))
+                lines.append("- " + self.format_dayun_context_line(y, calculator=calculator))
             parts.append("\n".join(lines))
         if mingge_analysis:
             parts.append("命格分析结果：\n" + self.format_mingge_analysis(mingge_analysis))
@@ -699,17 +732,17 @@ class BaziAnalysisSkill:
         )
         return response.choices[0].message.content or ""
 
-    def build_bazi_analysis_prompt(self, bazi_info, complete_dayun=None):
+    def build_bazi_analysis_prompt(self, bazi_info, complete_dayun=None, calculator=None):
         return PROMPT_TEMPLATES["bazi_analysis"].format(
             bazi_info=bazi_info,
-            complete_dayun=self.format_complete_dayun(complete_dayun),
+            complete_dayun=self.format_complete_dayun(complete_dayun, calculator=calculator),
         )
 
-    def build_dayun_analysis_prompt(self, bazi_info, dayun_ganzhi, complete_dayun=None):
+    def build_dayun_analysis_prompt(self, bazi_info, dayun_ganzhi, complete_dayun=None, calculator=None):
         return PROMPT_TEMPLATES["dayun_analysis"].format(
             bazi_info=bazi_info,
             dayun_ganzhi=dayun_ganzhi,
-            complete_dayun=self.format_complete_dayun(complete_dayun),
+            complete_dayun=self.format_complete_dayun(complete_dayun, calculator=calculator),
         )
 
     def build_default_report_prompt(
@@ -718,11 +751,12 @@ class BaziAnalysisSkill:
         complete_dayun=None,
         dayun_list=None,
         mingge_analysis=None,
+        calculator=None,
     ):
         return PROMPT_TEMPLATES["default_report"].format(
             bazi_info=bazi_info,
-            complete_dayun=self.format_complete_dayun(complete_dayun),
-            dayun_list=self.format_dayun_window(dayun_list),
+            complete_dayun=self.format_complete_dayun(complete_dayun, calculator=calculator),
+            dayun_list=self.format_dayun_window(dayun_list, calculator=calculator),
             existing_mingge_analysis=self.format_mingge_analysis(mingge_analysis),
         )
 
@@ -774,15 +808,19 @@ class BaziAnalysisSkill:
         analysis["element_dislike"] = sorted(set(analysis["element_dislike"]))
         return analysis
 
-    def analyze_mingge(self, bazi_data, gender, complete_dayun=None):
+    def analyze_mingge(self, bazi_data, gender, complete_dayun=None, calculator=None):
         bazi_info = self.build_bazi_info_string(bazi_data, gender)
-        prompt = self.build_bazi_analysis_prompt(bazi_info, complete_dayun=complete_dayun)
+        prompt = self.build_bazi_analysis_prompt(
+            bazi_info, complete_dayun=complete_dayun, calculator=calculator
+        )
         content = self._chat(SYSTEM_PROMPTS["bazi_analysis"], prompt)
         return self.parse_ai_analysis(content)
 
-    def analyze_dayun_detail(self, bazi_data, gan_zhi, gender="男", complete_dayun=None):
+    def analyze_dayun_detail(self, bazi_data, gan_zhi, gender="男", complete_dayun=None, calculator=None):
         bazi_info = self.build_bazi_info_string(bazi_data, gender)
-        prompt = self.build_dayun_analysis_prompt(bazi_info, gan_zhi, complete_dayun=complete_dayun)
+        prompt = self.build_dayun_analysis_prompt(
+            bazi_info, gan_zhi, complete_dayun=complete_dayun, calculator=calculator
+        )
         content = self._chat(SYSTEM_PROMPTS["bazi_analysis"], prompt)
         return content
 
@@ -794,6 +832,7 @@ class BaziAnalysisSkill:
         dayun_list=None,
         da_yun=None,
         mingge_analysis=None,
+        calculator=None,
     ):
         bazi_info = self.build_bazi_info_string(bazi_data, gender)
         report_dayun_list = dayun_list if dayun_list is not None else da_yun
@@ -802,6 +841,7 @@ class BaziAnalysisSkill:
             complete_dayun=complete_dayun,
             dayun_list=report_dayun_list,
             mingge_analysis=mingge_analysis,
+            calculator=calculator,
         )
         report = self._chat(SYSTEM_PROMPTS["default_report"], prompt)
         return f"{self.build_bazi_detail_table(bazi_data)}\n\n{report}"
@@ -817,6 +857,7 @@ class BaziAnalysisSkill:
         current_month_ganzhi=None,
         current_day_ganzhi=None,
         temporal_context=None,
+        calculator=None,
     ):
         context = self.build_chat_context_string(
             bazi_data=bazi_data,
@@ -826,6 +867,7 @@ class BaziAnalysisSkill:
             mingge_analysis=mingge_analysis,
             current_month_ganzhi=current_month_ganzhi,
             current_day_ganzhi=current_day_ganzhi,
+            calculator=calculator,
         )
         if temporal_context:
             context = f"{context}\n\n{temporal_context}"
@@ -866,6 +908,7 @@ class BaziAnalysisSkill:
         leap_month=False,
         reference_datetime=None,
     ):
+        calculator = None
         if bazi_data is None:
             if not self.has_birth_datetime(
                 birth_year,
@@ -890,6 +933,7 @@ class BaziAnalysisSkill:
             )
             bazi_data = birth_inputs["bazi_data"]
             gender = birth_inputs["gender"]
+            calculator = birth_inputs.get("calculator")
             if complete_dayun is None:
                 complete_dayun = birth_inputs["complete_dayun"]
             if dayun_list is None and da_yun is None:
@@ -904,6 +948,7 @@ class BaziAnalysisSkill:
                 complete_dayun=complete_dayun,
                 dayun_list=active_dayun_list,
                 mingge_analysis=mingge_analysis,
+                calculator=calculator,
             )
 
         temporal_context = self.build_temporal_context_for_question(
@@ -912,6 +957,7 @@ class BaziAnalysisSkill:
             complete_dayun=complete_dayun,
             dayun_list=active_dayun_list,
             reference_datetime=reference_datetime,
+            calculator=calculator,
         )
         return self.answer_chat_question(
             user_message=user_message,
@@ -923,5 +969,6 @@ class BaziAnalysisSkill:
             current_month_ganzhi=current_month_ganzhi,
             current_day_ganzhi=current_day_ganzhi,
             temporal_context=temporal_context,
+            calculator=calculator,
         )
 

@@ -1,23 +1,22 @@
 ---
 name: bazi-astrology
-description: Runs bazi chart generation, dayun analysis, full-report generation, and chat context building for user-facing astrology questions.
+description: 提供八字排盘、大运分析、完整报告生成与聊天上下文构建，面向命理占星类用户问题。
 disable-model-invocation: true
 ---
 
-# Bazi Astrology Skill
+# 八字占星技能
 
-## Instructions
+## 使用说明
 
-1. Use `BaziAnalysisSkill` from `analysis_skill.py`.
-2. Prefer `analyze_user_request(user_message, ...)` for user-facing requests.
-3. User-facing input should provide出生年月日时（`birth_year`, `birth_month`, `birth_day`, `birth_hour`, optional `birth_minute`）and `gender`; if they are missing, the skill will ask the user to provide them.
-4. The skill handles generic full reports, concrete questions, and time-related questions internally.
-5. If the user only asks for a generic analysis such as “帮我分析这个生辰八字” or “帮我分析”, `analyze_user_request()` outputs one full report. The report starts with a bazi detail table for天干、天干十神、地支、地支藏干十神、神煞, then covers命格分析, 当前三步大运详解, 五行喜忌, and转运建议; the report prompt includes computed十神 and神煞 context.
-6. If the user asks a concrete question, `analyze_user_request()` answers through the `/chat` context built by `build_chat_context_string()`, including computed十神 and神煞 context.
-7. If a `/chat` question includes time references such as “下个月”, “明年”, or a concrete date, the skill computes the target流年、流月、流日干支 and target-date大运干支, then injects them into the chat prompt.
+1. 从 `analysis_skill.py` 使用 `BaziAnalysisSkill`。
+2. 面向用户的请求优先调用 `analyze_user_request(user_message, ...)`。
+3. 用户侧需提供出生年月日时（`birth_year`、`birth_month`、`birth_day`、`birth_hour`，可选 `birth_minute`）以及 `gender`；若缺失，Skill 会提示用户补充。
+4. Skill 内部区分：泛化完整报告、具体问题、以及带时间指向的问题。
+5. 若用户仅提出泛化分析需求（例如「帮我分析这个生辰八字」「帮我分析」），`analyze_user_request()` 会输出一份完整报告。报告先展示八字详情表（天干、天干十神、地支、地支藏干十神、神煞），再涵盖命格分析、当前三步大运详解、五行喜忌与转运建议；报告所用提示词中包含已计算的十神与神煞上下文。
+6. 若用户提出具体问题，`analyze_user_request()` 通过 `build_chat_context_string()` 构建的 `/chat` 上下文作答，并携带已计算的十神与神煞上下文。
+7. 若 `/chat` 问题中出现时间表述（如「下个月」「明年」或具体公历日期），Skill 会推算目标流年、流月、流日干支以及该日所属大运干支，并写入聊天提示词。
 
-## Notes
+## 备注
 
-- This skill intentionally excludes any HTML/JS UI logic.
-- Model defaults are in `prompt_config.py`.
-
+- 本 Skill 不包含任何 HTML/JS 界面逻辑。
+- 模型默认参数见 `prompt_config.py`。
